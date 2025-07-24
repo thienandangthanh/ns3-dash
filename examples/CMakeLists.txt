@@ -1,4 +1,11 @@
 build_lib_example(
+  NAME dash-simple
+  SOURCE_FILES dash-simple.cc
+  LIBRARIES_TO_LINK
+    ${libdash}
+)
+
+build_lib_example(
   NAME dash-example
   SOURCE_FILES dash-example.cc
   LIBRARIES_TO_LINK
