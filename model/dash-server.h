@@ -38,69 +38,173 @@ class Socket;
 class Packet;
 
 /**
- * \ingroup dash
+ * @ingroup dash
  *
- * \breif This application was written to complement DashClient. It received
- * requests for MPEG Segments from clients, and responds by transmitting back
- * the MPEG frames that are contained in the frame
+ * @brief DASH server application for NS-3 simulations
+ *
+ * This application serves as a DASH (Dynamic Adaptive Streaming over HTTP) server
+ * that responds to client requests for video segments. It receives requests from
+ * DASH clients and transmits back synthetic MPEG video segments.
+ *
+ * The server operates by:
+ * - Listening for incoming TCP connections from DASH clients
+ * - Parsing HTTP requests containing video segment parameters (VideoId, Resolution, SegmentId)
+ * - Generating synthetic video segments with realistic timing and size characteristics
+ * - Transmitting video frames back to clients with proper HTTP and MPEG headers
  *
  * The constructor specifies the Address (IP address and port) and the
- * transport protocol to use.   A virtual Receive () method is installed
- * as a callback on the receiving socket.  By default, when logging is
- * enabled, it prints out the size of packets and their address, but
- * we intend to also add a tracing source to Receive() at a later date.
+ * transport protocol to use. A virtual receive method is installed
+ * as a callback on the receiving socket.
+ *
+ * @note This implementation generates synthetic video data rather than using
+ *       real video content, making it suitable for network simulation purposes.
  */
 class DashServer : public Application
 {
   public:
+    /**
+     * @brief Get the TypeId for DashServer class
+     * @return The object TypeId
+     */
     static TypeId GetTypeId(void);
+
+    /**
+     * @brief Default constructor
+     */
     DashServer();
 
+    /**
+     * @brief Destructor
+     */
     virtual ~DashServer();
 
     /**
-     * \return pointer to listening socket
+     * @brief Get the listening socket for the server
+     * @return Pointer to the listening socket
      */
     Ptr<Socket> GetListeningSocket(void) const;
 
     /**
-     * \return list of pointers to accepted sockets
+     * @brief Get the list of accepted client sockets
+     * @return List of pointers to accepted socket connections
      */
     std::list<Ptr<Socket>> GetAcceptedSockets(void) const;
 
   protected:
+    /**
+     * @brief Dispose of the server resources
+     *
+     * Cleans up sockets and socket list when the server is destroyed.
+     */
     virtual void DoDispose(void);
 
   private:
-    // inherited from Application base class.
-    virtual void StartApplication(void); // Called at time specified by Start
-    virtual void StopApplication(void);  // Called at time specified by Stop
+    /**
+     * @brief Start the DASH server application
+     *
+     * Creates and configures the listening socket, sets up callbacks
+     * for handling incoming connections and data. Supports both
+     * unicast and multicast addresses.
+     */
+    virtual void StartApplication(void);
 
-    void HandleRead(Ptr<Socket>);         // Called when a request is received
-    void DataSend(Ptr<Socket>, uint32_t); // Called when a new segment is transmitted
-                                          // or when new space is aveilable in the buffer
+    /**
+     * @brief Stop the DASH server application
+     *
+     * Closes all accepted client connections and the listening socket,
+     * cleaning up all network resources.
+     */
+    virtual void StopApplication(void);
+
+    /**
+     * @brief Handle incoming data from clients
+     * @param socket The socket that received data
+     *
+     * Processes incoming HTTP requests from DASH clients. Parses the
+     * custom HTTP header to extract video segment request parameters
+     * (VideoId, Resolution, SegmentId) and responds by sending the
+     * requested video segment.
+     */
+    void HandleRead(Ptr<Socket> socket);
+
+    /**
+     * @brief Handle socket ready for sending data
+     * @param socket The socket ready for transmission
+     * @param unused Unused parameter (required by callback signature)
+     *
+     * Transmits queued video frames to the client. Handles TCP flow control
+     * by checking available send buffer space and fragmenting large frames
+     * if necessary to avoid blocking.
+     */
+    void DataSend(Ptr<Socket> socket, uint32_t unused);
+
+    /**
+     * @brief Generate and send a video segment to a client
+     * @param video_id The ID of the video being streamed
+     * @param resolution The requested bitrate/resolution in bits per second
+     * @param segment_id The sequential ID of the segment within the video
+     * @param socket The client socket to send the segment to
+     *
+     * Creates a synthetic video segment consisting of multiple MPEG frames.
+     * Each frame has:
+     * - Random size based on the requested bitrate (assumes 50 fps)
+     * - HTTP header with response metadata
+     * - MPEG header with frame timing and metadata
+     * - Synthetic payload data
+     *
+     * The segment is queued for transmission and sent when the socket is ready.
+     *
+     * @note This implementation generates synthetic data rather than using
+     *       real video content, making it suitable for network simulation.
+     */
     void SendSegment(uint32_t video_id,
                      uint32_t resolution,
                      uint32_t segment_id,
-                     Ptr<Socket> socket);                // Sends the segment back to the client
-    void HandleAccept(Ptr<Socket>, const Address& from); // Called hen a new connection is accepted
-    void HandlePeerClose(Ptr<Socket>); // Called when the connection is closed by the peer.
-    void HandlePeerError(Ptr<Socket>); // Called when there is a peer error
+                     Ptr<Socket> socket);
 
-    // In the case of TCP, each socket accept returns a new socket, so the
-    // listening socket is stored seperately from the accepted sockets
-    Ptr<Socket> m_socket;                // Listening socket
-    std::list<Ptr<Socket>> m_socketList; // the accepted sockets
+    /**
+     * @brief Handle new client connections
+     * @param s The new accepted socket
+     * @param from The address of the connecting client
+     *
+     * Sets up callbacks for the newly accepted client socket and
+     * adds it to the list of active connections.
+     */
+    void HandleAccept(Ptr<Socket> s, const Address& from);
 
-    Address m_local;    // Local address to bind to
-    uint32_t m_totalRx; // Total bytes received
-    TypeId m_tid;       // Protocol TypeId
+    /**
+     * @brief Handle client connection close (normal)
+     * @param socket The socket that was closed
+     */
+    void HandlePeerClose(Ptr<Socket> socket);
+
+    /**
+     * @brief Handle client connection close (error)
+     * @param socket The socket that had an error
+     */
+    void HandlePeerError(Ptr<Socket> socket);
+
+    Ptr<Socket> m_socket;                //!< Listening socket
+    std::list<Ptr<Socket>> m_socketList; //!< List of accepted sockets
+
+    Address m_local;    //!< Local address to bind to
+    uint32_t m_totalRx; //!< Total bytes received
+    TypeId m_tid;       //!< Protocol TypeId
+
+    /**
+     * @brief Trace source for received packets
+     */
     TracedCallback<Ptr<const Packet>, const Address&> m_rxTrace;
 
-    // A structure that contains the generated MPEG frames, for each client.
+    /**
+     * @brief Queue of generated MPEG frames for each client socket
+     *
+     * Maps each client socket to a queue of video frames waiting to be transmitted.
+     * Used to handle TCP flow control and ensure frames are sent in order.
+     */
     std::map<Ptr<Socket>, std::deque<Packet>> m_queues;
 
-    Ptr<Packet> m_pending_packet = nullptr;
+    Ptr<Packet> m_pending_packet = nullptr; //!< Buffer for incomplete received packets
 };
 
 } // namespace ns3
