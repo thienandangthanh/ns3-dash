@@ -150,10 +150,10 @@ class DashTestSuite : public TestSuite
 };
 
 DashTestSuite::DashTestSuite()
-    : TestSuite("dash", UNIT)
+    : TestSuite("dash", Type::UNIT)
 {
     // TestDuration for TestCase can be QUICK, EXTENSIVE or TAKES_FOREVER
-    AddTestCase(new DashTestCase1, TestCase::QUICK);
+    AddTestCase(new DashTestCase1, Duration::QUICK);
 }
 
 // Do not forget to allocate an instance of this TestSuite
