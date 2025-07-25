@@ -18,6 +18,12 @@
  * Author: Dimitrios J. Vergados <djvergad@gmail.com>
  */
 
+/**
+ * @file
+ * @ingroup dash
+ * Implementation of the DASH server application for NS-3 simulations.
+ */
+
 #include "dash-server.h"
 
 #include "http-header.h"
@@ -302,11 +308,13 @@ DashServer::SendSegment(uint32_t video_id,
                         uint32_t segment_id,
                         Ptr<Socket> socket)
 {
+    // Calculate average frame size based on bitrate and 50 fps
     int avg_packetsize = resolution / (50 * 8);
 
     HTTPHeader http_header_tmp;
     MPEGHeader mpeg_header_tmp;
 
+    // Setup random frame size generator
     Ptr<UniformRandomVariable> frame_size_gen = CreateObject<UniformRandomVariable>();
 
     frame_size_gen->SetAttribute("Min", DoubleValue(0));
@@ -316,32 +324,41 @@ DashServer::SendSegment(uint32_t video_id,
                                                         http_header_tmp.GetSerializedSize()),
                              1)));
 
+    // Generate frames for the segment
     for (uint32_t f_id = 0; f_id < MPEG_FRAMES_PER_SEGMENT; f_id++)
     {
         uint32_t frame_size = (unsigned)frame_size_gen->GetValue();
 
+        // Create HTTP response header
         HTTPHeader http_header;
         http_header.SetMessageType(HTTP_RESPONSE);
         http_header.SetVideoId(video_id);
         http_header.SetResolution(resolution);
         http_header.SetSegmentId(segment_id);
 
+        // Create MPEG frame header with timing information
         MPEGHeader mpeg_header;
         mpeg_header.SetFrameId(f_id);
         mpeg_header.SetPlaybackTime(MilliSeconds((f_id + (segment_id * MPEG_FRAMES_PER_SEGMENT)) *
                                                  MPEG_TIME_BETWEEN_FRAMES)); // 50 fps
-        mpeg_header.SetType('B');
+
+        mpeg_header.SetType('B'); // B-frame type
         mpeg_header.SetSize(frame_size);
 
+        // Create packet with synthetic payload and add headers
         Ptr<Packet> frame = Create<Packet>(frame_size);
         frame->AddHeader(mpeg_header);
         frame->AddHeader(http_header);
+
         NS_LOG_INFO("SENDING PACKET "
                     << f_id << " " << frame->GetSize() << " res=" << http_header.GetResolution()
                     << " size=" << mpeg_header.GetSize() << " avg=" << avg_packetsize);
 
+        // Queue frame for transmission
         m_queues[socket].push_back(*frame);
     }
+
+    // Trigger transmission of queued frames
     DataSend(socket, 0);
 }
 
