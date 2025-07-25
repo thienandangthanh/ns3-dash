@@ -106,7 +106,7 @@ class DashServer : public Application
      * for handling incoming connections and data. Supports both
      * unicast and multicast addresses.
      */
-    virtual void StartApplication(void);
+    void StartApplication() override;
 
     /**
      * @brief Stop the DASH server application
@@ -114,7 +114,7 @@ class DashServer : public Application
      * Closes all accepted client connections and the listening socket,
      * cleaning up all network resources.
      */
-    virtual void StopApplication(void);
+    void StopApplication(void) override;
 
     /**
      * @brief Handle incoming data from clients
